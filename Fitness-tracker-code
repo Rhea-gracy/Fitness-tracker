@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Fitness Tracker Dashboard</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"/>
+<style>
+body {
+    font-family: 'Poppins', sans-serif;
+    background: url('https://static.vecteezy.com/system/resources/previews/027/395/804/non_2x/seamless-pattern-of-female-fitness-exercise-equipment-hand-drawn-watercolor-illustration-of-gym-tools-on-isolated-background-drawing-of-women-s-sport-for-workout-clothes-and-textile-prints-png.png') repeat;
+    background-attachment: fixed;
+    background-size: cover;
+    color: #2f2f2f; 
+}
+h1 {
+    color: #000000; /* dark pinkish-beige */
+    -webkit-text-stroke: 1px #b36b6b; /* black outline */
+    text-shadow: 2px 2px 6px #b36b6b;
+    font-weight: bold;
+}
+.card {
+    border-radius: 15px;
+    box-shadow: 0 8px 20px rgba(0,0,0,0.3);
+    background: rgba(250,250,250,0.95);
+    transition: transform 0.3s, box-shadow 0.3s;
+    color: #2f2f2f;
+}
+.card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 12px 25px rgba(0,0,0,0.4);
+}
+.btn-primary {
+    background-color: #c78f8f;
+    border: none;
+    color: #fff;
+}
+.btn-primary:hover {
+    background-color: #b36b6b;
+}
+.btn-success {
+    background-color: #a3b3a3;
+    border: none;
+    color: #fff;
+}
+.btn-success:hover {
+    background-color: #859985;
+}
+.goal-progress {
+    font-weight: bold;
+    color: #444444;
+}
+.workout-icon {
+    margin-right: 10px;
+    color: #d87c7c;
+}
+canvas {
+    background: #fdfdfd;
+    border-radius: 15px;
+    padding: 10px;
+    box-shadow: 0 8px 20px rgba(0,0,0,0.2);
+}
+.progress {
+    height: 25px;
+    border-radius: 20px;
+    background: #e0e0e0;
+}
+.progress-bar {
+    font-weight: bold;
+    font-size: 0.9rem;
+    line-height: 25px;
+    background-color: #c78f8f;
+}
+@media (max-width: 576px) {
+    .form-control { margin-bottom: 10px; }
+}
+</style>
+</head>
+<body>
+<div class="container py-4">
+<h1 class="text-center mb-5"><i class="fas fa-dumbbell"></i> Fitness Tracker</h1>
+
+<div class="card mb-4 p-3">
+<h4 class="mb-3"><i class="fas fa-running workout-icon"></i>Add Workout</h4>
+<form id="workoutForm" class="row g-3">
+<div class="col-md-4">
+<input type="text" class="form-control" id="type" placeholder="Workout Type e.g. Yoga" required>
+</div>
+<div class="col-md-3">
+<input type="number" class="form-control" id="duration" placeholder="Duration (mins)" required>
+</div>
+<div class="col-md-3">
+<input type="number" class="form-control" id="calories" placeholder="Calories Burned" required>
+</div>
+<div class="col-md-2">
+<button type="submit" class="btn btn-primary w-100"><i class="fas fa-plus"></i> Add</button>
+</div>
+</form>
+</div>
+
+<div class="card mb-4 p-3">
+<h4 class="mb-3"><i class="fas fa-chart-line workout-icon"></i>Progress Chart</h4>
+<canvas id="progressChart" height="120"></canvas>
+</div>
+
+<div class="card mb-4 p-3">
+<h4 class="mb-3"><i class="fas fa-bullseye workout-icon"></i>Set Fitness Goals</h4>
+<form id="goalForm" class="row g-3 mb-3">
+<div class="col-md-6">
+<input type="number" class="form-control" id="weeklyGoal" placeholder="Weekly Goal (Calories)" required>
+</div>
+<div class="col-md-6">
+<button type="submit" class="btn btn-success w-100"><i class="fas fa-flag"></i> Set Goal</button>
+</div>
+</form>
+<p class="goal-progress text-center fs-5 mb-2">Progress: <span id="goalProgress">0</span> / <span id="goalTarget">0</span> Calories</p>
+
+<div class="progress mb-2">
+<div id="goalProgressBar" class="progress-bar" style="width: 0%">0%</div>
+</div>
+
+<p class="text-center fs-6">🔥 Streak: <span id="streakCount">0</span> days</p>
+</div>
+</div>
+
+<script>
+let workouts = [];
+let weeklyGoal = 0;
+let streak = 0;
+let lastWorkoutDate = null;
+
+const ctx = document.getElementById('progressChart').getContext('2d');
+const progressChart = new Chart(ctx, {
+    type: 'bar',
+    data: { labels: [], datasets: [{ label: 'Calories Burned', data: [], backgroundColor: [], borderRadius: 10 }] },
+    options: { responsive: true, animation: { duration: 800, easing: 'easeOutBounce' }, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+});
+
+function getRandomColor() {
+    const colors = ['#c78f8f','#a3b3a3','#d8b4a6','#b8c7b8','#e2c9b8','#c7b3a3','#d9a3a3'];
+    return colors[Math.floor(Math.random() * colors.length)];
+}
+
+function updateChart() {
+    progressChart.data.labels = workouts.map(w => w.type);
+    progressChart.data.datasets[0].data = workouts.map(w => w.calories);
+    progressChart.data.datasets[0].backgroundColor = workouts.map(() => getRandomColor());
+    progressChart.update();
+
+    const totalCalories = workouts.reduce((sum, w) => sum + w.calories, 0);
+    $('#goalProgress').text(totalCalories);
+
+    let progressPercent = weeklyGoal ? Math.min((totalCalories / weeklyGoal) * 100, 100) : 0;
+    $('#goalProgressBar').css('width', progressPercent + '%').text(Math.floor(progressPercent) + '%');
+}
+
+function updateStreak() {
+    const today = new Date().toDateString();
+    if(lastWorkoutDate !== today) {
+        if(lastWorkoutDate === new Date(Date.now() - 86400000).toDateString()) {
+            streak++;
+        } else {
+            streak = 1;
+        }
+        lastWorkoutDate = today;
+        $('#streakCount').text(streak);
+    }
+}
+
+$('#workoutForm').submit(function(e) {
+    e.preventDefault();
+    const type = $('#type').val();
+    const duration = parseInt($('#duration').val());
+    const calories = parseInt($('#calories').val());
+
+    workouts.push({ type, duration, calories });
+    $('#type').val(''); $('#duration').val(''); $('#calories').val('');
+    updateChart();
+    updateStreak();
+});
+
+$('#goalForm').submit(function(e) {
+    e.preventDefault();
+    weeklyGoal = parseInt($('#weeklyGoal').val());
+    $('#goalTarget').text(weeklyGoal);
+    updateChart();
+});
+</script>
+</body>
+</html>
